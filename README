@@ -1,5 +1,7 @@
 ========== MOKOFIGHT ==========
 
+Gra mobilna umożliwiająca walkę na telefony przy użyciu akcelerometrów, podobną do walki na miecze.
+
 ==== SERWER ====
 Serwer napisany w C znajduje się w katalogu /server
 
@@ -12,6 +14,8 @@ Uruchomienie:
   ./server
 
 Gdy serwer wypisze wiadomość "MokoFight Server: alive and kicking!" oznacza to, że jest gotowy na przyjmowanie połączeń na porcie 5104.
+
+Serwer działa jednowątkowo realizując współbieżność przy użyciu funkcji select().
 
 ==== KLIENCI ====
 Podstawowym klientem gry jest klient dla platformy Maemo, napisany w Pythonie przy użyciu PyGTK, znajdujący się w katalogu /clients/maemo
