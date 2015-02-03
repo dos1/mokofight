@@ -25,7 +25,7 @@ int main() {
   struct sockaddr_storage remoteAddr;
   socklen_t addrLength;
 
-  char buf[256];
+  char buf[1];
   int nbytes;
 
   char remoteIP[INET6_ADDRSTRLEN];
@@ -113,8 +113,11 @@ int main() {
                 remoteIP, INET6_ADDRSTRLEN),
               newConnection);
             
-            // TODO; add player here
             players = addPlayer(players, newConnection);
+            Player *newPlayer = findPlayerById(players, newConnection);
+            
+            newPlayer->_state.moko = 4; // expect ping message
+            
           }
         } else {
           // new data
@@ -127,14 +130,59 @@ int main() {
 
             if (close(i) == 0) { // bye!
               FD_CLR(i, &descriptors);
-              
-              // TODO: remove player here
+              players = deletePlayerById(players, i);
             } else {
               perror("couldn't close the socket of disconnected player");
             }
           } else {
             
-            // TODO: handle player's input here
+            
+            Player *player = findPlayerById(players, i);
+                        
+            if (player->_state.moko) {
+              // ping pong state: MOKO -> FIGHT
+              
+              player->_state.buf[4-player->_state.moko] = buf[0];
+              player->_state.moko--;
+              if (! player->_state.moko) {
+                if (strncmp(player->_state.buf, "MOKO", 4) == 0) {
+                  write(newConnection, "FIGHT", 5);
+                  
+                  printf("pingpong successed for client %d\n", i);
+                } else {
+                  // TODO: disconnecting; move to function
+                  close(i);
+                  FD_CLR(i, &descriptors);
+                  players = deletePlayerById(players, i);
+                  printf("invalid client %d disconnected\n", i);
+                }
+              }
+              
+              continue;
+            }
+            
+            switch (buf[0]) {
+              case 'H':
+                printf("helo moto\n");
+                // TODO: assign a name here
+                break;
+              case '\n':
+              case ' ':
+              case '\r':
+                // whitespace: ignore for easier debugging
+                break;
+              case 'Q':
+                write(i, "BYE\n", 4);
+                // TODO: disconnecting; move to function
+                close(i);
+                FD_CLR(i, &descriptors);
+                players = deletePlayerById(players, i);
+                printf("client %d disconnected per request\n", i);
+                break;
+              default:
+                printf("got an unrecognized command %c from client %d\n", buf[0], i);
+                break;
+            }
             
             for(j = 0; j <= highestDescriptor; j++) {
               if (FD_ISSET(j, &descriptors)) {
