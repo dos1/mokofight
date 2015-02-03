@@ -160,11 +160,11 @@ void disconnect(int id) {
   printf("socket %d disconnected\n", id);
 }
 
-bool attack(Player *player, char type) {
+bool attack(Player *player, char type1, char type2) {
   if (!player) return false;
   
-  if (!(type == 'X' || type == 'Y' || type == 'Z')) {
-    printf("socket %d sent incorrect attack type %c\n", player->id, type);
+  if ((!(type1 == 'X' || type1 == 'Y' || type1 == 'Z')) || (!(type2 == 'X' || type2 == 'Y' || type2 == 'Z'))) {
+    printf("socket %d sent incorrect attack type %c%c\n", player->id, type1, type2);
     if (write(player->id, "FAIL", 4) == -1) {
       perror("write");
     }
@@ -183,14 +183,14 @@ bool attack(Player *player, char type) {
     // hit
     printf("HIT!\n");
     strcat(data, "H");
-    // FIXME: concat remaining HP here
   } else {
     // miss
     printf("MISS!\n");
     strcat(data, "M");
   }
-  
   strncat(data, opponent->name, 5);
+  
+  // FIXME: concat remaining HP here
   
   sendGameEvent(player, data, strlen(data));
   
@@ -379,8 +379,12 @@ int main() {
             } else if (player->_state.attack) {
               // player wants to attack
 
-              attack(player, buf[0]);
-              player->_state.attack = 0;
+              if (player->_state.attack == 2) {
+                player->_state.buf[0] = buf[0];
+              } else {
+                attack(player, player->_state.buf[0], buf[0]);
+              }
+              player->_state.attack--;
               
             } else if (player->_state.position) {
               // player wants to update his position
@@ -440,7 +444,7 @@ int main() {
                 case 'A':
                   // client wants to attack
                   if (player->inGame) {
-                    player->_state.attack = 1;
+                    player->_state.attack = 2;
                     printf("player %d wants to attack\n", i);
                   } else {
                     printf("player %d wants to attack, but it's not in active game!\n", i);

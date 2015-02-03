@@ -1,0 +1,88 @@
+========== MOKOFIGHT ==========
+
+==== SERWER ====
+Serwer napisany w C znajduje się w katalogu /server
+
+Kompilacja:
+  make
+
+Uruchomienie:
+  make run
+          alternatywnie
+  ./server
+
+Gdy serwer wypisze wiadomość "MokoFight Server: alive and kicking!" oznacza to, że jest gotowy na przyjmowanie połączeń na porcie 5104.
+
+==== KLIENCI ====
+Podstawowym klientem gry jest klient dla platformy Maemo, napisany w Pythonie przy użyciu PyGTK, znajdujący się w katalogu /clients/maemo
+
+Uruchomienie (na urządzeniu z systemem Maemo takim jak Nokia N900):
+  python mokofight.py
+
+==== PROTOKÓŁ KOMUNIKACYJNY ====
+
+Podłączający się klient jest zobowiązany do wysłania komunikatu "MOKO", na który serwer odpowiada "FIGHT". Od tego momentu serwer zaczyna czekać na komendy klienta.
+
+Klient ma w tym momencie możliwość wyboru - może być albo graczem, albo obserwatorem, albo pełnić obie role jednocześnie.
+
+Tryb obserwatora uruchamiany jest wysłaniem przez klienta polecenia "S", na które serwer odpowiada "SPOK".
+Tryb obserwatora sprawia, że klient otrzymuje informacje (tzw. game events) na temat wszystkich rozgrywających się na serwerze gier (może je np. wyświelić w panelu kontrolnym).
+Obserwator, o ile nie jest też graczem, nie może w żaden sposób wpływać na rozgrywkę.
+
+Tryb gracza rejestruje klienta w puli dostępnych graczy na serwerze i umożliwia mu podejmowanie akcji związanych z parowaniem graczy. Gracz, o ile nie jest też obserwatorem, otrzymuje informacje (game events) wyłącznie na temat gry w której uczesniczy.
+Tryb gracza uruchamiany jest wysłaniem przez klienta polecenia "H", na które serwer odpowiada, po kolei:
+ - wygenerowanym identyfikatorem gracza 
+ - listą identyfikatorów wolnych graczy znajdujących się obecnie na serwerze (z wyłączeniem nowoutworzonego gracza)
+ - komunikatem "NOMOR", informującym o zakończeniu listy wolnych graczy
+ 
+Nowoutworzony gracz staje się wolnym graczem - tzn. graczem nieuczestniczącym aktualnie w żadnej rozgrywce.
+ 
+Każdy identyfikator gracza składa się z 5 znaków będących liczbą heksadecymalną zapisaną wielkimi literami.
+
+Zarówno obserwatorzy, jak i gracze, otrzymują powiadomienia związane z pojawianiem się i znikaniem wolnych graczy na serwerze.
+Gdy pojawia się nowy wolny gracz (tzn. utworzony jest nowy gracz albo już istniejący gracz skończył swoją rozgrywkę), każdy gracz oraz obserwator otrzymuje powiadomienie składające się z:
+ - znaków "NEW"
+ - identyfikatora nowego wolnego gracza
+ 
+Gdy znika wolny gracz (tzn. rozłącza się z serwera albo rozpoczyna rozgrywkę), każdy gracz oraz obserwator otrzymuje powiadomienie składające się z:
+ - znaków "OLD"
+ - identyfikatora znikającego wolnego gracza
+
+Rozgrywka toczy się za pomocą tzw. game events. Game event wysyłany jest graczom toczącym daną rozgrywkę oraz wszystkim obserwatorom. Game event składa się z:
+ - znaków "EVENT"
+ - 10 znaków identyfikujących rozgrywkę
+ - znaku identyfikującego rodzaj eventu
+ - opcjonalnych argumentów
+ - znaków "NOMOR"
+ 
+Identyfikator rozgrywki jest złączeniem identyfikatorów graczy. Zagwarantowana jest stała kolejność występowania identyfikatorów graczy w identyfikatorze gry.
+ 
+Istnieją trzy rodzaje game eventów:
+ - start (znak "S") - informuje o rozpoczęciu rozgrywki. Nie posiada argumentów.
+ - atak (znak "A")  - informuje o podjętym ataku na przeciwnika. Argumenty składają się z:
+   - znaku "H" oznaczającego udany atak, bądź znaku "M" oznaczającego uderzenie zablokowane
+   - 5 znaków będących identyfikatorem gracza atakowanego
+   - 3 znaków będących liczbą punktów życia (HP) pozostałych atakowanemu graczowi, dopełnionych zerami od lewej strony
+ - koniec (znak "E") - informuje o zakończeniu rozgrywki. Argumenty składają się z:
+   - 5 znaków będących identyfikatorem gracza zwycięskiego
+ 
+Aby rozpocząć rozgrywkę, dwoje wolnych graczy musi dokonać parowania - oznacza to, że muszą oznaczyć się wzajemnie jako chętni do gry.
+Aby dokonać parowania, wolny gracz wysyła komendę składającą się z:
+ - znaku "J"
+ - identyfikatora innego wolnego gracza
+Serwer odpowiada znakami "OKAY".
+W sytuacji, gdy wybrany gracz oznaczył już wcześniej gracza wybierającego, rozpoczyna się rozgrywka.
+
+ROZGRYWKA:
+
+Każdy gracz rozpoczyna z liczbą punktów życia (HP) równą 100. Rozpoczęcie rozgrywki inicjuje game event "start".
+
+Każdy gracz zobowiązany jest do aktualizacji swojej pozycji. Aby to zrobić, musi wysłać komendę "P", a następnie znak od 0 do 9, oznaczający numer przyjmowanej właśnie pozycji. Na jej podstawie serwer określa czy atak przeciwnika się ma szansę udać.
+
+Aby zaatakować przeciwnika, gracz musi wysłać komendę "A", a następnie dwa znaki, każdy będący znakiem "X", "Y" bądź "Z", oznaczające oś względem której wykonany został ruch (jeśli atak wykonany został względem tylko jednej osi, należy tę oś podać dwukrotnie). Atak inicjuje game event "atak" informujący o tym, czy atak się powiódł czy nie i aktualizujący punkty życia przeciwnika. Gdy punkty życia (HP) przeciwnika w skutek ataku spadną do zera, rozgrywka się kończy z atakującym jako jej zwycięzcą.
+
+Walkę można oddać walkoverem wysyłając komendę "L". Oddanie gry walkoverem kończy rozgrywkę z przeciwnikiem jako jej zwycięzcą.
+
+Jeżeli jeden z graczy rozłączy się z serwera w trakcie rozgrywki, rozgrywka się kończy z przeciwnikiem jako jej zwycięzcą.
+
+Koniec rozgrywki inicjuje game event "koniec". W skutek zakończenia rozgrywki gracze w niej uczestniczący, o ile nie rozłączyli się z serwerem, wracają do puli graczy wolnych (generując przy tym powiadomienia NEW).
