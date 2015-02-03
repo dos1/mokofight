@@ -75,7 +75,7 @@ void sendGameEvent(Player *player, char* buf, int len) {
   
   if (!opponent || !opponent->opponent || !opponent->inGame) return;
   
-  char* gameName = strdup("");
+  char gameName[11] = "";
   
   // make game name persistent regardless of which side initiated the event
   if (strncmp(player->name, opponent->name, 5) < 0) {
@@ -86,7 +86,7 @@ void sendGameEvent(Player *player, char* buf, int len) {
     strncat(gameName, player->name, 5);
   }
   
-  char* newBuf = strdup("EVENT");
+  char newBuf[255] = "EVENT";
   strcat(newBuf, gameName);
   strncat(newBuf, buf, len);
   strcat(newBuf, "NOMOR");
@@ -111,8 +111,6 @@ void sendGameEvent(Player *player, char* buf, int len) {
     list = list->next;
   }
   
-  free(newBuf);
-  free(gameName);
 }
 
 void startGame(char* name, char* opponentName) {
@@ -160,6 +158,43 @@ void disconnect(int id) {
     game.players = deletePlayerById(game.players, id);
   }
   printf("socket %d disconnected\n", id);
+}
+
+bool attack(Player *player, char type) {
+  if (!player) return false;
+  
+  if (!(type == 'X' || type == 'Y' || type == 'Z')) {
+    printf("socket %d sent incorrect attack type %c\n", player->id, type);
+    if (write(player->id, "FAIL", 4) == -1) {
+      perror("write");
+    }
+    return false;
+  }
+
+  Player *opponent = findPlayerByName(game.players, player->opponent);
+  
+  if (!opponent || !player->inGame) return false;
+  
+  // FIXME: check with current position instead of generating random outcome
+  
+  char data[10] = "A";
+  
+  if (rand() % 2) {
+    // hit
+    printf("HIT!\n");
+    strcat(data, "H");
+    // FIXME: concat remaining HP here
+  } else {
+    // miss
+    printf("MISS!\n");
+    strcat(data, "M");
+  }
+  
+  strncat(data, opponent->name, 5);
+  
+  sendGameEvent(player, data, strlen(data));
+  
+  return true;
 }
 
 int main() {
@@ -283,6 +318,8 @@ int main() {
           }
           
           if ((nbytes = recv(i, buf, sizeof buf, 0)) <= 0) {
+            // connection dropped
+            
             if (nbytes == 0) {
               printf("socket %d hung up\n", i);
             } else {
@@ -292,6 +329,8 @@ int main() {
             disconnect(i);
 
           } else {
+            
+            // Got some data from client!
             
             if (buf[0] == '\n' || buf[0] == ' ' || buf[0] == '\r') {
               // whitespace: ignore for easier debugging
@@ -337,6 +376,18 @@ int main() {
                 }
               }
               
+            } else if (player->_state.attack) {
+              // player wants to attack
+
+              attack(player, buf[0]);
+              player->_state.attack = 0;
+              
+            } else if (player->_state.position) {
+              // player wants to update his position
+
+              updatePosition(player, buf[0]);
+              player->_state.position = 0;
+              
             } else {
               
               // no special state, so it's a new command!
@@ -381,6 +432,23 @@ int main() {
                   printf("player %d wants to join the game. listening for opponent...\n", i);
                   player->_state.join = 5;
                   break;
+                case 'P':
+                  // client wants to update his position
+                  player->_state.position = 1;
+                  printf("player %d wants to update its position\n", i);
+                  break;
+                case 'A':
+                  // client wants to attack
+                  if (player->inGame) {
+                    player->_state.attack = 1;
+                    printf("player %d wants to attack\n", i);
+                  } else {
+                    printf("player %d wants to attack, but it's not in active game!\n", i);
+                    if (write(i, "FAIL", 4) == -1) {
+                      perror("write");
+                    }
+                  }
+                  break;
                 case 'L':
                   // client leaves his game (gives up), but stays connected
                   if (!player->name || !player->opponent || !player->inGame) {
@@ -391,10 +459,9 @@ int main() {
                     break;
                   }
                     
-                  char* eventBuf = strdup("E");
+                  char eventBuf[100] = "E";
                   strncat(eventBuf, player->opponent, 5);
                   sendGameEvent(player, eventBuf, 6);
-                  free(eventBuf);
                   
                   // FIXME: move to function and call on disconnect where appropiate
                   

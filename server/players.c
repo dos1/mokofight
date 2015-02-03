@@ -140,3 +140,12 @@ bool leaveGame(PlayerList *list, int playerId) {
   
   return true;
 }
+
+bool updatePosition(Player *player, char position) {
+  if (player && position >= '0' && position <= '9') {
+    player->position = position - '0';
+    printf("player %d has new position %d\n", player->id, player->position);
+    return true;
+  }
+  return false;
+}
