@@ -215,6 +215,11 @@ int main() {
 
           } else {
             
+            if (buf[0] == '\n' || buf[0] == ' ' || buf[0] == '\r') {
+              // whitespace: ignore for easier debugging
+              continue;
+            }
+            
             if (player->_state.moko) {
               // ping pong state: MOKO -> FIGHT
               
@@ -266,11 +271,6 @@ int main() {
                   
                   sendPlayerList(i);
                   
-                  break;
-                case '\n':
-                case ' ':
-                case '\r':
-                  // whitespace: ignore for easier debugging
                   break;
                 case 'S':
                   // client wants to enable spectator mode
