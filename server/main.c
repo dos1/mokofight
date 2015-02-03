@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -11,22 +12,64 @@
 
 #define PORT "5104"
 
+static char* DICT = "0123456789ABCDEF";
+
 struct {
   PlayerList *players;
   fd_set descriptors;
 } game; // global object
+
+char* generateName() {
+  char* res = strdup("12345");
+  int i;
+  for (i=0; i<5; i++) {
+    res[i] = DICT[rand() % strlen(DICT)];
+  }
+  
+  // check if name already exists and regenerate if necessary
+  if (findPlayerByName(game.players, res)) {
+    return generateName();
+  }
+  
+  return res;
+}
+
+void broadcast(char* buf, int len, int sender) {
+  printf("broadcasting %s len %d sender %d\n", buf, len, sender);
+  PlayerList *list = game.players;
+  while (list) {
+    if (list->player->id != sender) {
+      if (list->player->active) {
+        printf("  sending to %d\n", list->player->id);
+        write(list->player->id, buf, len);
+      }
+    }
+    list = list->next;
+  }
+}
 
 void disconnect(int id) {
   if (close(id)) {
     perror("couldn't close the socket of disconnected player");
   }
   FD_CLR(id, &game.descriptors);
-  game.players = deletePlayerById(game.players, id);
+  
+  Player *player = findPlayerById(game.players, id);
+  
+  if (player) {
+    if (player->name) {
+      broadcast("OLD", 3, id);
+      broadcast(player->name, 5, id);
+    }
+
+    game.players = deletePlayerById(game.players, id);
+  }
   printf("socket %d disconnected\n", id);
-  // TODO: broadcast leaving if needed
 }
 
 int main() {
+  
+  srand(time(NULL));
   
   game.players = NULL;
   
@@ -135,6 +178,15 @@ int main() {
           }
         } else {
           // new data
+          
+          Player *player = findPlayerById(game.players, i);
+          
+          if (!player) {
+            printf("no player for socket! MASSIVE BREAKAGE\n");
+            close(i);
+            continue;
+          }
+          
           if ((nbytes = recv(i, buf, sizeof buf, 0)) <= 0) {
             if (nbytes == 0) {
               printf("socket %d hung up\n", i);
@@ -146,9 +198,6 @@ int main() {
 
           } else {
             
-            
-            Player *player = findPlayerById(game.players, i);
-                        
             if (player->_state.moko) {
               // ping pong state: MOKO -> FIGHT
               
@@ -157,7 +206,7 @@ int main() {
               if (! player->_state.moko) {
                 if (strncmp(player->_state.buf, "MOKO", 4) == 0) {
                   write(i, "FIGHT", 5);
-                  
+                  player->active = true;
                   printf("pingpong successed for client %d\n", i);
                 } else {
                   printf("invalid client %d!\n", i);
@@ -172,7 +221,10 @@ int main() {
               case 'H':
                 printf("helo moto\n");
                 // TODO: assign a name here
-                // TODO: broadcast new player
+                player->name = generateName();
+                
+                broadcast("NEW", 3, i);
+                broadcast(player->name, 5, i);
                 break;
               case '\n':
               case ' ':

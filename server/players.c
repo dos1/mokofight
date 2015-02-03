@@ -16,7 +16,7 @@ Player* findPlayerById(PlayerList *list, int id) {
 
 Player* findPlayerByName(PlayerList *list, char* name) {
   while (list) {
-    if (strncmp(name, list->player->name, 5) == 0) {
+    if (list->player->name && strncmp(name, list->player->name, 5) == 0) {
       return list->player;
     }
     list = list->next;
@@ -29,6 +29,7 @@ PlayerList* addPlayer(PlayerList *list, int id) {
   player->id = id;
   player->name = NULL;
   player->opponent = NULL;
+  player->active = false;
   player->spectator = false;
   player->position = 0;
   player->hp = 0;
