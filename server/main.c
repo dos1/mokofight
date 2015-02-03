@@ -36,12 +36,12 @@ char* generateName() {
 }
 
 void broadcast(char* buf, int len, int sender) {
-  // sends message to every active player except of player "sender"
+  // sends message to every active player or spectator except of player "sender"
   printf("broadcasting %s len %d sender %d\n", buf, len, sender);
   PlayerList *list = game.players;
   while (list) {
     if (list->player->id != sender) {
-      if (list->player->active) {
+      if (list->player->name || list->player->spectator) {
         printf("  sending to %d\n", list->player->id);
         if (write(list->player->id, buf, len) == -1) {
           perror("write");
@@ -103,7 +103,7 @@ void sendGameEvent(Player *player, char* buf, int len) {
   // send to spectators
   PlayerList *list = game.players;
   while (list) {
-    if (list->player->active && list->player->spectator && list->player != player && list->player != opponent) {
+    if (list->player->spectator && list->player != player && list->player != opponent) {
       if (write(list->player->id, newBuf, newLen) == -1) {
         perror("sendGameEvent write spectator");
       }
@@ -308,7 +308,6 @@ int main() {
                   if (write(i, "FIGHT", 5) == -1) {
                     perror("write");
                   }
-                  player->active = true;
                   printf("pingpong successed for client %d\n", i);
                 } else {
                   printf("invalid client %d!\n", i);
@@ -345,6 +344,14 @@ int main() {
               switch (buf[0]) {
                 case 'H':
                   // clients wants to be a player
+                  if (player->name) {
+                    printf("socket %d wants to become a player, but it's already a player!\n", i);
+                    if (write(i, "NOOK", 4) == -1) {
+                      perror("write");
+                    }
+                    break;
+                  }
+                  
                   printf("socket %d wants to become a player\n", i);
                   player->name = generateName();
                   broadcast("NEW", 3, i);
@@ -361,6 +368,7 @@ int main() {
                   if (write(i, "SPOK", 4) == -1) {
                     perror("write");
                   }
+                  sendPlayerList(i);
                   break;
                 case 'J':
                   // client wants to join game

@@ -29,7 +29,6 @@ PlayerList* addPlayer(PlayerList *list, int id) {
   player->id = id;
   player->name = NULL;
   player->opponent = NULL;
-  player->active = false;
   player->spectator = false;
   player->position = 0;
   player->hp = 0;

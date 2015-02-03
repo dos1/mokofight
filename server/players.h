@@ -4,7 +4,6 @@ typedef struct Player {
   int id;
   char *name;
   char *opponent;
-  bool active;
   bool spectator;
   int position;
   int hp;
