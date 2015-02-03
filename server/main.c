@@ -41,7 +41,9 @@ void broadcast(char* buf, int len, int sender) {
     if (list->player->id != sender) {
       if (list->player->active) {
         printf("  sending to %d\n", list->player->id);
-        write(list->player->id, buf, len);
+        if (write(list->player->id, buf, len) != -1) {
+          perror("write");
+        }
       }
     }
     list = list->next;
@@ -205,7 +207,9 @@ int main() {
               player->_state.moko--;
               if (! player->_state.moko) {
                 if (strncmp(player->_state.buf, "MOKO", 4) == 0) {
-                  write(i, "FIGHT", 5);
+                  if (write(i, "FIGHT", 5) == -1) {
+                    perror("write");
+                  }
                   player->active = true;
                   printf("pingpong successed for client %d\n", i);
                 } else {
@@ -232,7 +236,9 @@ int main() {
                 // whitespace: ignore for easier debugging
                 break;
               case 'Q':
-                write(i, "BYE\n", 4);
+                if (write(i, "BYE\n", 4) == -1) {
+                  perror("write");
+                }
                 printf("disconnecting client %d per request\n", i);
                 disconnect(i);
                 break;
@@ -241,15 +247,6 @@ int main() {
                 break;
             }
             
-            for (j = 0; j <= highestDescriptor; j++) {
-              if (FD_ISSET(j, &game.descriptors)) {
-                if (j != server && j != i) {
-                  if (send(j, buf, nbytes, 0) == -1) {
-                    perror("send");
-                  }
-                }
-              }
-            }
           }
         }
       }
