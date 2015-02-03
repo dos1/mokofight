@@ -41,12 +41,27 @@ void broadcast(char* buf, int len, int sender) {
     if (list->player->id != sender) {
       if (list->player->active) {
         printf("  sending to %d\n", list->player->id);
-        if (write(list->player->id, buf, len) != -1) {
+        if (write(list->player->id, buf, len) == -1) {
           perror("write");
         }
       }
     }
     list = list->next;
+  }
+}
+
+void sendPlayerList(int id) {
+  PlayerList *list = game.players;
+  while (list) {
+    if (list->player->name && list->player->id != id && !list->player->inGame) {
+      if (write(id, list->player->name, 5) == -1) {
+        perror("sendPlayerList write");
+      }
+    }
+    list = list->next;
+  }
+  if (write(id, "NOMOR", 5) == -1) { // no more!
+    perror("sendPlayerList write 2");
   }
 }
 
@@ -59,7 +74,7 @@ void disconnect(int id) {
   Player *player = findPlayerById(game.players, id);
   
   if (player) {
-    if (player->name) {
+    if (player->name && !player->inGame) {
       broadcast("OLD", 3, id);
       broadcast(player->name, 5, id);
     }
@@ -91,7 +106,7 @@ int main() {
 
   int yes = 1;
 
-  int i, j, rv;
+  int i, rv;
 
   struct addrinfo hints, *ai, *p;
 
@@ -205,7 +220,7 @@ int main() {
               
               player->_state.buf[4-player->_state.moko] = buf[0];
               player->_state.moko--;
-              if (! player->_state.moko) {
+              if (!player->_state.moko) {
                 if (strncmp(player->_state.buf, "MOKO", 4) == 0) {
                   if (write(i, "FIGHT", 5) == -1) {
                     perror("write");
@@ -218,35 +233,75 @@ int main() {
                 }
               }
               
-              continue;
-            }
-            
-            switch (buf[0]) {
-              case 'H':
-                printf("helo moto\n");
-                // TODO: assign a name here
-                player->name = generateName();
-                
-                broadcast("NEW", 3, i);
-                broadcast(player->name, 5, i);
-                break;
-              case '\n':
-              case ' ':
-              case '\r':
-                // whitespace: ignore for easier debugging
-                break;
-              case 'Q':
-                if (write(i, "BYE\n", 4) == -1) {
-                  perror("write");
+            } else if (player->_state.join) {
+              // player wants to join the game
+              
+              player->_state.buf[5-player->_state.join] = buf[0];
+              player->_state.join--;
+              
+              if (!player->_state.join) {
+                printf("player %d selected the opponent %s\n", i, player->_state.buf);
+
+                if (joinGame(game.players, i, player->_state.buf)) {
+                  printf("LET THE GAME BEGIN\n");
+                  
+                  // TODO: start game
+                  
                 }
-                printf("disconnecting client %d per request\n", i);
-                disconnect(i);
-                break;
-              default:
-                printf("got an unrecognized command %c from client %d\n", buf[0], i);
-                break;
+              }
+              
+            } else {
+              
+              // no special state, so it's a new command!
+              
+              switch (buf[0]) {
+                case 'H':
+                  // clients wants to be a player
+                  printf("socket %d wants to become a player\n", i);
+                  player->name = generateName();
+                  broadcast("NEW", 3, i);
+                  broadcast(player->name, 5, -1); // player also needs to know its name
+                  
+                  printf("socket %d got name %s\n", i, player->name);
+                  
+                  sendPlayerList(i);
+                  
+                  break;
+                case '\n':
+                case ' ':
+                case '\r':
+                  // whitespace: ignore for easier debugging
+                  break;
+                case 'S':
+                  // client wants to enable spectator mode
+                  player->spectator = true;
+                  if (write(i, "SPOK", 4) == -1) {
+                    perror("write");
+                  }
+                  break;
+                case 'J':
+                  // client wants to join game
+                  if (!player->name) {
+                    printf("non-player %d wants to join the game!\n", i);
+                    if (write(i, "NOOK", 4) == -1) {
+                      perror("write");
+                    }
+                  }
+                  printf("player %d wants to join the game. listening for opponent...\n", i);
+                  player->_state.join = 5;
+                  break;
+                case 'Q':
+                  if (write(i, "BYE\n", 4) == -1) {
+                    perror("write");
+                  }
+                  printf("disconnecting client %d per request\n", i);
+                  disconnect(i);
+                  break;
+                default:
+                  printf("got an unrecognized command %c from client %d\n", buf[0], i);
+                  break;
+              }
             }
-            
           }
         }
       }

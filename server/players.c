@@ -108,7 +108,7 @@ bool joinGame(PlayerList *list, int playerId, char* game) {
   
   Player *opponent = findPlayerByName(list, game); // TODO: error handling
   
-  if (opponent && strncmp(opponent->opponent, player->name, 5) == 0) {
+  if (opponent && opponent->opponent && player->name && strncmp(opponent->opponent, player->name, 5) == 0) {
     // game is joined mutually - let the game begin!
     player->inGame = true;
     opponent->inGame = true;
