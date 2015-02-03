@@ -20,6 +20,7 @@ struct {
 } game; // global object
 
 char* generateName() {
+  // generates random name
   char* res = strdup("12345");
   int i;
   for (i=0; i<5; i++) {
@@ -35,6 +36,7 @@ char* generateName() {
 }
 
 void broadcast(char* buf, int len, int sender) {
+  // sends message to every active player except of player "sender"
   printf("broadcasting %s len %d sender %d\n", buf, len, sender);
   PlayerList *list = game.players;
   while (list) {
@@ -51,6 +53,7 @@ void broadcast(char* buf, int len, int sender) {
 }
 
 void sendPlayerList(int id) {
+  // sends player list to player "id"
   PlayerList *list = game.players;
   while (list) {
     if (list->player->name && list->player->id != id && !list->player->inGame) {
@@ -63,6 +66,81 @@ void sendPlayerList(int id) {
   if (write(id, "NOMOR", 5) == -1) { // no more!
     perror("sendPlayerList write 2");
   }
+}
+
+void sendGameEvent(Player *player, char* buf, int len) {
+  if (!player || !player->opponent || !player->inGame) return;
+  
+  Player *opponent = findPlayerByName(game.players, player->opponent);
+  
+  if (!opponent || !opponent->opponent || !opponent->inGame) return;
+  
+  char* gameName = strdup("");
+  
+  // make game name persistent regardless of which side initiated the event
+  if (strncmp(player->name, opponent->name, 5) < 0) {
+    strncat(gameName, player->name, 5);
+    strncat(gameName, opponent->name, 5);
+  } else {
+    strncat(gameName, opponent->name, 5);
+    strncat(gameName, player->name, 5);
+  }
+  
+  char* newBuf = strdup("EVENT");
+  strcat(newBuf, gameName);
+  strncat(newBuf, buf, len);
+  strcat(newBuf, "NOMOR");
+  
+  int newLen = strlen(newBuf);
+  
+  if (write(player->id, newBuf, newLen) == -1) {
+    perror("sendGameEvent write player");
+  }
+  if (write(opponent->id, newBuf, newLen) == -1) {
+    perror("sendGameEvent write opponent");
+  }
+  
+  // send to spectators
+  PlayerList *list = game.players;
+  while (list) {
+    if (list->player->active && list->player->spectator && list->player != player && list->player != opponent) {
+      if (write(list->player->id, newBuf, newLen) == -1) {
+        perror("sendGameEvent write spectator");
+      }
+    }
+    list = list->next;
+  }
+  
+  free(newBuf);
+  free(gameName);
+}
+
+void startGame(char* name, char* opponentName) {
+  Player *player = findPlayerByName(game.players, name), *opponent = findPlayerByName(game.players, opponentName);
+  
+  if (!player || !opponent) {
+    printf("couldn't start the game!\n");
+    return;
+  }
+  
+  if (player->opponent) {
+    free(player->opponent);
+  }
+  player->opponent = strdup(opponentName);
+  
+  if (opponent->opponent) {
+    free(opponent->opponent);
+  }
+  opponent->opponent = strdup(name);
+  
+  player->inGame = true;
+  opponent->inGame = true;
+  
+  player->hp = 100;
+  opponent->hp = 100;
+  
+  sendGameEvent(player, "S", 1);
+  
 }
 
 void disconnect(int id) {
@@ -247,11 +325,16 @@ int main() {
               if (!player->_state.join) {
                 printf("player %d selected the opponent %s\n", i, player->_state.buf);
 
-                if (joinGame(game.players, i, player->_state.buf)) {
+                bool starting = joinGame(game.players, i, player->_state.buf);
+                
+                if (write(i, "OKAY", 4) == -1) {
+                  perror("write");
+                }
+                
+                if (starting) {
                   printf("LET THE GAME BEGIN\n");
                   
-                  // TODO: start game
-                  
+                  startGame(player->name, player->_state.buf);
                 }
               }
               
@@ -265,7 +348,7 @@ int main() {
                   printf("socket %d wants to become a player\n", i);
                   player->name = generateName();
                   broadcast("NEW", 3, i);
-                  broadcast(player->name, 5, -1); // player also needs to know its name
+                  broadcast(player->name, 5, -1); // -1 cause player also needs to know its name
                   
                   printf("socket %d got name %s\n", i, player->name);
                   
@@ -290,7 +373,47 @@ int main() {
                   printf("player %d wants to join the game. listening for opponent...\n", i);
                   player->_state.join = 5;
                   break;
+                case 'L':
+                  // client leaves his game (gives up), but stays connected
+                  if (!player->name || !player->opponent || !player->inGame) {
+                    printf("socket %d issued illegal leave command\n", i);
+                    if (write(i, "NOOK", 4) == -1) {
+                      perror("write");
+                    }
+                    break;
+                  }
+                    
+                  char* eventBuf = strdup("E");
+                  strncat(eventBuf, player->opponent, 5);
+                  sendGameEvent(player, eventBuf, 6);
+                  free(eventBuf);
+                  
+                  // FIXME: move to function and call on disconnect where appropiate
+                  
+                  Player *opponent = findPlayerByName(game.players, player->opponent);
+                  if (opponent) {
+                    opponent->inGame = false;
+                    if (opponent->opponent) {
+                      free(opponent->opponent);
+                    }
+                    opponent->opponent = NULL;
+                    // broadcast that the opponent returned to the pool
+                    broadcast("NEW", 3, opponent->id);
+                    broadcast(opponent->name, 5, opponent->id);
+                  }
+                  
+                  player->inGame = false;
+                  if (player->opponent) {
+                    free(player->opponent);
+                  }
+                  player->opponent = NULL;
+                  // broadcast that the player returned to the pool
+                  broadcast("NEW", 3, i);
+                  broadcast(player->name, 5, i);
+
+                  break;
                 case 'Q':
+                  // client wants the server to disconnect him. well, okay then!
                   if (write(i, "BYE\n", 4) == -1) {
                     perror("write");
                   }
