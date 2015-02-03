@@ -25,7 +25,7 @@ typedef struct PlayerList {
 
 Player* findPlayerById(PlayerList *list, int id);
 Player* findPlayerByName(PlayerList *list, char* name);
-PlayerList* addPlayer(PlayerList *list, char* name);
+PlayerList* addPlayer(PlayerList *list, int id);
 bool joinGame(PlayerList *list, int playerId, char* game);
 bool leaveGame(PlayerList *list, int playerId);
 PlayerList *deletePlayerById(PlayerList *list, int id);

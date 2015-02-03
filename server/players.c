@@ -24,9 +24,10 @@ Player* findPlayerByName(PlayerList *list, char* name) {
   return NULL;
 }
 
-PlayerList* addPlayer(PlayerList *list, char* name) {
+PlayerList* addPlayer(PlayerList *list, int id) {
   Player *player = malloc(sizeof(Player));
-  player->name = strdup(name);
+  player->id = id;
+  player->name = NULL;
   player->opponent = NULL;
   player->spectator = false;
   player->position = 0;
@@ -64,7 +65,7 @@ static void _freePlayerListEntry(PlayerList *entry) {
 }
 
 PlayerList *deletePlayerById(PlayerList *list, int id) {
-  PlayerList *temp = list;
+  PlayerList *first = list;
   
   if (list->player->id == id) {
     PlayerList *pom = list->next;
@@ -83,11 +84,11 @@ PlayerList *deletePlayerById(PlayerList *list, int id) {
       _freePlayerListEntry(pom);
       free(pom);
 
-      return list;
+      return first;
     }
     list = list->next;
   }
-  return list;
+  return first;
 }
 
 bool joinGame(PlayerList *list, int playerId, char* game) {

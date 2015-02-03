@@ -1,17 +1,16 @@
 CC=gcc
-CFLAGS=-I$(IDIR) -Wall -g
 
-LIBS=-lm
+FLAGS=-Wall -g
 
 DEPS = helpers.h players.h
 
 OBJ = main.o players.o helpers.o
 
 server: $(OBJ)
-	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
+	$(CC) $(FLAGS) -o $@ $^
 
 %.o: %.c $(DEPS)
-	$(CC) -c -o $@ $< $(CFLAGS)
+	$(CC) $(FLAGS) -c -o $@ $<
 
 .PHONY: clean run check
 

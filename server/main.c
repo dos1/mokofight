@@ -11,8 +11,10 @@
 
 #define PORT "5104"
 
-int main(void)
-{
+int main() {
+  
+  PlayerList *players = NULL;
+  
   fd_set descriptors;
   fd_set read_fds;
   int highestDescriptor;
@@ -70,7 +72,7 @@ int main(void)
 
   freeaddrinfo(ai);
 
-  if (listen(server, 10) == -1) {
+  if (listen(server, 32) == -1) {
     perror("listen");
     exit(EXIT_FAILURE);
   }
@@ -78,6 +80,10 @@ int main(void)
   FD_SET(server, &descriptors);
   highestDescriptor = server;
 
+  printf("MokoFight Server: alive and kicking!\n");
+  
+  // here's where the fun begins
+  
   while (true) {
     read_fds = descriptors;
     if (select(highestDescriptor+1, &read_fds, NULL, NULL, NULL) == -1) {
@@ -106,6 +112,9 @@ int main(void)
                 get_in_addr((struct sockaddr*)&remoteAddr),
                 remoteIP, INET6_ADDRSTRLEN),
               newConnection);
+            
+            // TODO; add player here
+            players = addPlayer(players, newConnection);
           }
         } else {
           // new data
@@ -118,8 +127,15 @@ int main(void)
 
             if (close(i) == 0) { // bye!
               FD_CLR(i, &descriptors);
+              
+              // TODO: remove player here
+            } else {
+              perror("couldn't close the socket of disconnected player");
             }
           } else {
+            
+            // TODO: handle player's input here
+            
             for(j = 0; j <= highestDescriptor; j++) {
               if (FD_ISSET(j, &descriptors)) {
                 if (j != server && j != i) {
