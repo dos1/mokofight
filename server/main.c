@@ -146,7 +146,7 @@ int main() {
               player->_state.moko--;
               if (! player->_state.moko) {
                 if (strncmp(player->_state.buf, "MOKO", 4) == 0) {
-                  write(newConnection, "FIGHT", 5);
+                  write(i, "FIGHT", 5);
                   
                   printf("pingpong successed for client %d\n", i);
                 } else {
