@@ -69,7 +69,7 @@ PlayerList *deletePlayerById(PlayerList *list, int id) {
   
   if (list->player->id == id) {
     PlayerList *pom = list->next;
-    leaveGame(list, id);
+    leaveGame(first, id);
     _freePlayerListEntry(list);
     free(list);
     return pom;
@@ -80,7 +80,7 @@ PlayerList *deletePlayerById(PlayerList *list, int id) {
       PlayerList *pom = list->next;
       list->next = list->next->next;
       
-      leaveGame(list, id);
+      leaveGame(first, id);
       _freePlayerListEntry(pom);
       free(pom);
 
@@ -94,6 +94,11 @@ PlayerList *deletePlayerById(PlayerList *list, int id) {
 bool joinGame(PlayerList *list, int playerId, char* game) {
   
   Player *player = findPlayerById(list, playerId); // TODO: error handling
+  
+  if (!player) {
+    printf("joinGame: tried to join non-existent player %d!!!\n", playerId);
+    return false;
+  }
   
   if (player->opponent) {
     free(player->opponent);
@@ -115,7 +120,7 @@ bool joinGame(PlayerList *list, int playerId, char* game) {
 bool leaveGame(PlayerList *list, int playerId) {
   Player *player = findPlayerById(list, playerId); // TODO: error handling
   
-  if (! player->opponent) {
+  if ((!player) || (!player->opponent)) {
     return false;
   }
   

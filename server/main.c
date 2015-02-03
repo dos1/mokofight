@@ -11,11 +11,25 @@
 
 #define PORT "5104"
 
+struct {
+  PlayerList *players;
+  fd_set descriptors;
+} game; // global object
+
+void disconnect(int id) {
+  if (close(id)) {
+    perror("couldn't close the socket of disconnected player");
+  }
+  FD_CLR(id, &game.descriptors);
+  game.players = deletePlayerById(game.players, id);
+  printf("socket %d disconnected\n", id);
+  // TODO: broadcast leaving if needed
+}
+
 int main() {
   
-  PlayerList *players = NULL;
+  game.players = NULL;
   
-  fd_set descriptors;
   fd_set read_fds;
   int highestDescriptor;
 
@@ -36,7 +50,7 @@ int main() {
 
   struct addrinfo hints, *ai, *p;
 
-  FD_ZERO(&descriptors);
+  FD_ZERO(&game.descriptors);
   FD_ZERO(&read_fds);
 
   memset(&hints, 0, sizeof hints);
@@ -77,7 +91,7 @@ int main() {
     exit(EXIT_FAILURE);
   }
 
-  FD_SET(server, &descriptors);
+  FD_SET(server, &game.descriptors);
   highestDescriptor = server;
 
   printf("MokoFight Server: alive and kicking!\n");
@@ -85,7 +99,7 @@ int main() {
   // here's where the fun begins
   
   while (true) {
-    read_fds = descriptors;
+    read_fds = game.descriptors;
     if (select(highestDescriptor+1, &read_fds, NULL, NULL, NULL) == -1) {
       perror("select");
       exit(EXIT_FAILURE);
@@ -103,7 +117,7 @@ int main() {
           if (newConnection == -1) {
             perror("accept");
           } else {
-            FD_SET(newConnection, &descriptors);
+            FD_SET(newConnection, &game.descriptors);
             if (newConnection > highestDescriptor) {
               highestDescriptor = newConnection;
             }
@@ -113,8 +127,8 @@ int main() {
                 remoteIP, INET6_ADDRSTRLEN),
               newConnection);
             
-            players = addPlayer(players, newConnection);
-            Player *newPlayer = findPlayerById(players, newConnection);
+            game.players = addPlayer(game.players, newConnection);
+            Player *newPlayer = findPlayerById(game.players, newConnection);
             
             newPlayer->_state.moko = 4; // expect ping message
             
@@ -128,16 +142,12 @@ int main() {
               perror("recv");
             }
 
-            if (close(i) == 0) { // bye!
-              FD_CLR(i, &descriptors);
-              players = deletePlayerById(players, i);
-            } else {
-              perror("couldn't close the socket of disconnected player");
-            }
+            disconnect(i);
+
           } else {
             
             
-            Player *player = findPlayerById(players, i);
+            Player *player = findPlayerById(game.players, i);
                         
             if (player->_state.moko) {
               // ping pong state: MOKO -> FIGHT
@@ -150,11 +160,8 @@ int main() {
                   
                   printf("pingpong successed for client %d\n", i);
                 } else {
-                  // TODO: disconnecting; move to function
-                  close(i);
-                  FD_CLR(i, &descriptors);
-                  players = deletePlayerById(players, i);
-                  printf("invalid client %d disconnected\n", i);
+                  printf("invalid client %d!\n", i);
+                  disconnect(i);
                 }
               }
               
@@ -165,6 +172,7 @@ int main() {
               case 'H':
                 printf("helo moto\n");
                 // TODO: assign a name here
+                // TODO: broadcast new player
                 break;
               case '\n':
               case ' ':
@@ -173,19 +181,16 @@ int main() {
                 break;
               case 'Q':
                 write(i, "BYE\n", 4);
-                // TODO: disconnecting; move to function
-                close(i);
-                FD_CLR(i, &descriptors);
-                players = deletePlayerById(players, i);
-                printf("client %d disconnected per request\n", i);
+                printf("disconnecting client %d per request\n", i);
+                disconnect(i);
                 break;
               default:
                 printf("got an unrecognized command %c from client %d\n", buf[0], i);
                 break;
             }
             
-            for(j = 0; j <= highestDescriptor; j++) {
-              if (FD_ISSET(j, &descriptors)) {
+            for (j = 0; j <= highestDescriptor; j++) {
+              if (FD_ISSET(j, &game.descriptors)) {
                 if (j != server && j != i) {
                   if (send(j, buf, nbytes, 0) == -1) {
                     perror("send");
