@@ -45,11 +45,11 @@ Każdy identyfikator gracza składa się z 5 znaków będących liczbą heksadec
 
 Zarówno obserwatorzy, jak i gracze, otrzymują powiadomienia związane z pojawianiem się i znikaniem wolnych graczy na serwerze.
 Gdy pojawia się nowy wolny gracz (tzn. utworzony jest nowy gracz albo już istniejący gracz skończył swoją rozgrywkę), każdy gracz oraz obserwator otrzymuje powiadomienie składające się z:
- - znaków "NEW"
+ - znaków "ADD"
  - identyfikatora nowego wolnego gracza
  
 Gdy znika wolny gracz (tzn. rozłącza się z serwera albo rozpoczyna rozgrywkę), każdy gracz oraz obserwator otrzymuje powiadomienie składające się z:
- - znaków "OLD"
+ - znaków "DEL"
  - identyfikatora znikającego wolnego gracza
 
 Rozgrywka toczy się za pomocą tzw. game events. Game event wysyłany jest graczom toczącym daną rozgrywkę oraz wszystkim obserwatorom. Game event składa się z:
@@ -91,7 +91,7 @@ Walkę można oddać walkoverem wysyłając komendę "L". Oddanie gry walkoverem
 
 Jeżeli jeden z graczy rozłączy się z serwera w trakcie rozgrywki, rozgrywka się kończy z przeciwnikiem jako jej zwycięzcą.
 
-Koniec rozgrywki inicjuje game event "koniec". W skutek zakończenia rozgrywki gracze w niej uczestniczący, o ile nie rozłączyli się z serwerem, wracają do puli graczy wolnych (generując przy tym powiadomienia NEW).
+Koniec rozgrywki inicjuje game event "koniec". W skutek zakończenia rozgrywki gracze w niej uczestniczący, o ile nie rozłączyli się z serwerem, wracają do puli graczy wolnych (generując przy tym powiadomienia ADD).
 
 --
 

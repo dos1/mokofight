@@ -137,7 +137,7 @@ void startGame(char* name, char* opponentName) {
   player->hp = 100;
   opponent->hp = 100;
 	
-	broadcast("OLD", 3, -1);
+	broadcast("DEL", 3, -1);
 	broadcast(player->name, 5, player->id);
 	broadcast(opponent->name, 5, opponent->id);
 	
@@ -169,9 +169,8 @@ bool endGame(Player *winner) {
   free(opponent->opponent);
   opponent->opponent = NULL;
   
-  broadcast("NEW", 3, winner->id);
+  broadcast("ADD", 3, -1);
   broadcast(winner->name, 5, winner->id);
-  broadcast("NEW", 3, opponent->id);
   broadcast(opponent->name, 5, opponent->id);
   
   return true;
@@ -189,7 +188,7 @@ void disconnect(int id) {
   
   if (player) {
     if (player->name && !player->inGame) {
-      broadcast("OLD", 3, id);
+      broadcast("DEL", 3, id);
       broadcast(player->name, 5, id);
     }
 
@@ -470,7 +469,7 @@ int main() {
                   
                   printf("socket %d wants to become a player\n", i);
                   player->name = generateName();
-                  broadcast("NEW", 3, i);
+                  broadcast("ADD", 3, i);
                   broadcast(player->name, 5, -1); // -1 cause player also needs to know its name
                   
                   printf("socket %d got name %s\n", i, player->name);
