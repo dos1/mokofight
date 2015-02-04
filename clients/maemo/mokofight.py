@@ -29,6 +29,8 @@ ingame	  = 0
 hp	  = 100
 enemyhp   = 100
 
+# TODO: split Client and AccelReader to separate files
+
 class Client():
   
 	s = None
