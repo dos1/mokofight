@@ -2,6 +2,12 @@
 
 Gra mobilna umożliwiająca walkę na telefony przy użyciu akcelerometrów, podobną do walki na miecze.
 
+==== KLIENCI ====
+Podstawowym klientem gry jest klient dla platformy Maemo, napisany w Pythonie przy użyciu PyGTK, znajdujący się w katalogu /clients/maemo
+
+Uruchomienie (na urządzeniu z systemem Maemo takim jak Nokia N900):
+  python mokofight.py
+
 ==== SERWER ====
 Serwer napisany w C znajduje się w katalogu /server
 
@@ -16,12 +22,6 @@ Uruchomienie:
 Gdy serwer wypisze wiadomość "MokoFight Server: alive and kicking!" oznacza to, że jest gotowy na przyjmowanie połączeń na porcie 5104.
 
 Serwer działa jednowątkowo realizując współbieżność przy użyciu funkcji select().
-
-==== KLIENCI ====
-Podstawowym klientem gry jest klient dla platformy Maemo, napisany w Pythonie przy użyciu PyGTK, znajdujący się w katalogu /clients/maemo
-
-Uruchomienie (na urządzeniu z systemem Maemo takim jak Nokia N900):
-  python mokofight.py
 
 ==== PROTOKÓŁ KOMUNIKACYJNY ====
 
@@ -75,11 +75,13 @@ Aby dokonać parowania, wolny gracz wysyła komendę składającą się z:
  - znaku "J"
  - identyfikatora innego wolnego gracza
 Serwer odpowiada znakami "OKAY".
-W sytuacji, gdy wybrany gracz oznaczył już wcześniej gracza wybierającego, rozpoczyna się rozgrywka.
+W sytuacji, gdy wybrany gracz oznaczył już wcześniej gracza wybierającego, obydwaj gracze otrzymują komunikat "GAME" i rozpoczyna się rozgrywka.
 
 ROZGRYWKA:
 
-Każdy gracz rozpoczyna z liczbą punktów życia (HP) równą 100. Rozpoczęcie rozgrywki inicjuje game event "start".
+Rozpoczęcie rozgrywki inicjuje game event "start".
+
+Każdy gracz rozpoczyna z liczbą punktów życia (HP) równą 100.
 
 Każdy gracz zobowiązany jest do aktualizacji swojej pozycji. Aby to zrobić, musi wysłać komendę "P", a następnie znak od 0 do 9, oznaczający numer przyjmowanej właśnie pozycji. Na jej podstawie serwer określa czy atak przeciwnika się ma szansę udać.
 
@@ -90,3 +92,7 @@ Walkę można oddać walkoverem wysyłając komendę "L". Oddanie gry walkoverem
 Jeżeli jeden z graczy rozłączy się z serwera w trakcie rozgrywki, rozgrywka się kończy z przeciwnikiem jako jej zwycięzcą.
 
 Koniec rozgrywki inicjuje game event "koniec". W skutek zakończenia rozgrywki gracze w niej uczestniczący, o ile nie rozłączyli się z serwerem, wracają do puli graczy wolnych (generując przy tym powiadomienia NEW).
+
+--
+
+Serwer ignoruje wszystkie znaki nowej linii, powrotu karetki oraz spacji.

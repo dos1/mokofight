@@ -15,6 +15,7 @@ Player* findPlayerById(PlayerList *list, int id) {
 }
 
 Player* findPlayerByName(PlayerList *list, char* name) {
+  if (!name) return NULL;
   while (list) {
     if (list->player->name && strncmp(name, list->player->name, 5) == 0) {
       return list->player;

@@ -137,8 +137,40 @@ void startGame(char* name, char* opponentName) {
   player->hp = 100;
   opponent->hp = 100;
   
+  if (write(player->id, "GAME", 4) == -1) {
+    perror("startGame write player");
+  }
+  if (write(opponent->id, "GAME", 4) == -1) {
+    perror("startGame write opponent");
+  }
+  
   sendGameEvent(player, "S", 1);
   
+}
+
+bool endGame(Player *winner) {
+  if (!winner || !winner->inGame) return false;
+  Player* opponent = findPlayerByName(game.players, winner->opponent);
+  if (!opponent) return false;
+  
+  char data[7] = "E";
+  printf("player %d wins!\n", winner->id);
+  strncat(data, winner->name, 5);
+  sendGameEvent(winner, data, 6);
+  
+  winner->inGame = false;
+  free(winner->opponent);
+  winner->opponent = NULL;
+  opponent->inGame = false;
+  free(opponent->opponent);
+  opponent->opponent = NULL;
+  
+  broadcast("NEW", 3, winner->id);
+  broadcast(winner->name, 5, winner->id);
+  broadcast("NEW", 3, opponent->id);
+  broadcast(opponent->name, 5, opponent->id);
+  
+  return true;
 }
 
 void disconnect(int id) {
@@ -148,6 +180,8 @@ void disconnect(int id) {
   FD_CLR(id, &game.descriptors);
   
   Player *player = findPlayerById(game.players, id);
+
+  endGame(findPlayerByName(game.players, player->opponent));
   
   if (player) {
     if (player->name && !player->inGame) {
@@ -159,6 +193,8 @@ void disconnect(int id) {
   }
   printf("socket %d disconnected\n", id);
 }
+
+
 
 bool attack(Player *player, char type1, char type2) {
   if (!player) return false;
@@ -183,6 +219,15 @@ bool attack(Player *player, char type1, char type2) {
     // hit
     printf("HIT!\n");
     strcat(data, "H");
+    
+    // substract random value between 5 and 15 from opponent's HP
+    opponent->hp -= 5;
+    opponent->hp -= rand() % 11;
+    
+    if (opponent->hp < 0) {
+      opponent->hp = 0;
+    }
+    
   } else {
     // miss
     printf("MISS!\n");
@@ -190,9 +235,21 @@ bool attack(Player *player, char type1, char type2) {
   }
   strncat(data, opponent->name, 5);
   
-  // FIXME: concat remaining HP here
+  if (opponent->hp < 100) {
+    strcat(data, "0");
+  }
+  if (opponent->hp < 10) {
+    strcat(data, "0");
+  }
+  char hp[4];
+  snprintf(hp, 4, "%d", opponent->hp);
+  strcat(data, hp);
   
   sendGameEvent(player, data, strlen(data));
+  
+  if (opponent->hp == 0) {
+    endGame(player);
+  }
   
   return true;
 }
@@ -427,11 +484,20 @@ int main() {
                   break;
                 case 'J':
                   // client wants to join game
+                  if (player->inGame) {
+                    printf("player %d already in game wants to join another one!\n", i);
+                    if (write(i, "NOOK", 4) == -1) {
+                      perror("write");
+                    }
+                    break;
+                  }
+                  
                   if (!player->name) {
                     printf("non-player %d wants to join the game!\n", i);
                     if (write(i, "NOOK", 4) == -1) {
                       perror("write");
                     }
+                    break;
                   }
                   printf("player %d wants to join the game. listening for opponent...\n", i);
                   player->_state.join = 5;
@@ -462,34 +528,9 @@ int main() {
                     }
                     break;
                   }
-                    
-                  char eventBuf[100] = "E";
-                  strncat(eventBuf, player->opponent, 5);
-                  sendGameEvent(player, eventBuf, 6);
                   
-                  // FIXME: move to function and call on disconnect where appropiate
+                  endGame(findPlayerByName(game.players, player->opponent));
                   
-                  Player *opponent = findPlayerByName(game.players, player->opponent);
-                  if (opponent) {
-                    opponent->inGame = false;
-                    if (opponent->opponent) {
-                      free(opponent->opponent);
-                    }
-                    opponent->opponent = NULL;
-                    // broadcast that the opponent returned to the pool
-                    broadcast("NEW", 3, opponent->id);
-                    broadcast(opponent->name, 5, opponent->id);
-                  }
-                  
-                  player->inGame = false;
-                  if (player->opponent) {
-                    free(player->opponent);
-                  }
-                  player->opponent = NULL;
-                  // broadcast that the player returned to the pool
-                  broadcast("NEW", 3, i);
-                  broadcast(player->name, 5, i);
-
                   break;
                 case 'Q':
                   // client wants the server to disconnect him. well, okay then!
