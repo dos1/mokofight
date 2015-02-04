@@ -127,7 +127,7 @@ bool leaveGame(PlayerList *list, int playerId) {
   
   Player *opponent = findPlayerByName(list, player->opponent); // TODO: error handling
   
-  if (opponent) {
+  if (opponent && opponent->opponent) {
     if (strncmp(player->name, opponent->opponent, 5) == 0) {
       free(opponent->opponent);
       opponent->opponent = NULL;

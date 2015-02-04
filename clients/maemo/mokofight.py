@@ -11,6 +11,8 @@ import gtk
 import os
 import random
 import thread
+import socket
+import sys
 import dbus, time, sys
 from math import atan2, pi
 
@@ -19,41 +21,150 @@ from functools import wraps
 
 gtk.gdk.threads_init()
 
+PORT = 5104
+BUFFER_SIZE = 64
+
 x = y = z = 0
-obrona	  = 0
-atak	  = 0
 ingame	  = 0
 hp	  = 100
 enemyhp   = 100
 
+class Client():
+  
+	s = None
+	myID = None
+	players = []
+	actionsLocal = []
+	actionsRemote = []
+	connected = False
+
+	def get(self, n):
+		# TODO: timeout
+		res = ""
+		while len(res) < n:
+			res += self.s.recv(1)
+			#print "get(): ", res, n
+		return res
+
+	def __init__(self):
+		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		self.s.connect((sys.argv[1], PORT))
+		self.s.send("MOKO")
+		data = self.get(5)
+		print data
+		
+		if data == "FIGHT":
+			self.s.send("H")
+			self.myID = self.get(5)
+			while True:
+				player = self.get(5)
+				if player == "NOMOR":
+					break
+				self.players.append(player)
+			self.connected = True
+
+			print self.myID, self.players
+		else:
+			print "Couldn't connect"
+			self.s.close()
+			
+	def _new(self):
+		command = self.get(2)
+		if command != "EW":
+			print "new command mismatch!"
+			return
+		player = self.get(5)
+		self.players.append(player)
+		self.s.send("J" + player)
+		ok = self.get(4)
+		print "join reply", ok
+		print self.players
+		
+	def _old(self):
+		command = self.get(2)
+		if command != "LD":
+			print "old command mismatch!"
+			return
+		player = self.get(5)
+		self.players.remove(player)
+		print self.players
+	
+	def _gameEvent(self):
+		command = self.s.recv(4)
+		if command != "VENT":
+			print "game event command mismatch!"
+			return
+		gameID = self.get(10)
+		subcmd = self.get(1)
+		if subcmd == "A":
+			hitmiss = self.get(1)
+			target = self.get(5)
+			hp = self.get(3)
+			print "attack", hitmiss, target, hp
+		if subcmd == "E":
+			winner = self.get(5)
+			print "end of game, winner", winner
+		if subcmd == "S":
+			print "game started!"
+		
+		nomor = self.get(5)
+		if nomor != "NOMOR":
+			print "game event NOMOR command mismatch!"
+	
+	def _gameStart(self):
+		command = self.get(3)
+		if command != "AME":
+			print "game command mismatch!"
+			return
+		print "game started!"
+	
+	def _interpret(self, cmd):
+		handlers = {
+				'N': self._new,
+				'O': self._old,
+				'E': self._gameEvent,
+				'G': self._gameStart
+			};
+		if cmd in handlers:
+			handlers[cmd]()
+		else:
+			print "unknown command " + cmd
+	
+	def recv(self):
+		print "recv start"
+		while self.connected == True:
+			command = self.get(1)
+			print command
+			self._interpret(command)
+
 class throttle(object):
-    """
-    Decorator that prevents a function from being called more than once every
-    time period.
+	"""
+	Decorator that prevents a function from being called more than once every
+	time period.
 
-    To create a function that cannot be called more than once a minute:
+	To create a function that cannot be called more than once a minute:
 
-        @throttle(minutes=1)
-        def my_fun():
-            pass
-    """
-    def __init__(self, seconds=0, minutes=0, hours=0):
-        self.throttle_period = timedelta(
-            seconds=seconds, minutes=minutes, hours=hours
-        )
-        self.time_of_last_call = datetime.min
+			@throttle(minutes=1)
+			def my_fun():
+					pass
+	"""
+	def __init__(self, seconds=0, minutes=0, hours=0):
+		self.throttle_period = timedelta(
+			seconds=seconds, minutes=minutes, hours=hours
+		)
+		self.time_of_last_call = datetime.min
 
-    def __call__(self, fn):
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
-            now = datetime.now()
-            time_since_last_call = now - self.time_of_last_call
+	def __call__(self, fn):
+		@wraps(fn)
+		def wrapper(*args, **kwargs):
+			now = datetime.now()
+			time_since_last_call = now - self.time_of_last_call
 
-            if time_since_last_call > self.throttle_period:
-                self.time_of_last_call = now
-                return fn(*args, **kwargs)
+			if time_since_last_call > self.throttle_period:
+				self.time_of_last_call = now
+				return fn(*args, **kwargs)
 
-        return wrapper
+		return wrapper
 
 class AccelReader:
 	def __init__(self):
@@ -178,17 +289,13 @@ class MokoFight:
 
 	def win(self):
 		global ingame
-		self.playaudio("death.wav",0)
+		#self.playaudio("death.wav",0)
 		ingame=0
 
 	def lose(self):
 		global ingame
 		self.playaudio("death.wav",0)
 		ingame=0
-
-	def enemy_block(self):
-		randnr=random.randint(0, 1)	
-		return randnr
 
 	def update_hp(self):
 		global hp
@@ -204,25 +311,15 @@ class MokoFight:
 		if enemyhp == 0:
 			self.win()
 
-	def hitted (self):
-		global hp
+	def hit (self):
 		randnr=random.randint(1, 6)
 		self.playaudio("whoosh%d.wav" % (randnr))
-		hp = hp - 5
-		self.update_hp()
 		return True
 
-	def defended (self):
+	def defend (self):
 		randnr=random.randint(1, 5)
 		self.playaudio("ching%d.wav" % (randnr))
 		return True
-
-	def enemy_attack (self):
-		global obrona
-		if obrona == 1:
-			self.defended()
-		else:
-			self.hitted()
 
 	def enemy_attack_button (self, widget, data=None):
 		self.enemy_attack()
@@ -243,54 +340,7 @@ class MokoFight:
 		self.playaudio("ching%d.wav" % (randnr))	
 		return True
 
-	def attack (self):
-		global atak
-		atak=1
-		#print "attack"
-		if self.enemy_block():
-			self.miss()
-		else:
-			self.hit()
-		return True
-
-	def stop_attack (self):
-		global atak
-		atak=0
-		return True
-
-	def defend (self):
-		global obrona
-		#print "defending"
-		self.labeldefend.set_label("Defending")
-		obrona=1
-		return True
-
-	def stop_defend (self):
-		global obrona
-		#print "end of defending"
-		self.labeldefend.set_label("")
-		obrona=0
-		return True
-
-	def proceed (self):
-
-		global x, y, z
-		global obrona,atak
-
-		if z > 500 and atak==0 and obrona == 0 and x > -90:
-			self.attack()
-		elif z <= 500 and atak == 1:
-			self.stop_attack()
-
-		if x < -180 and z < 300 and obrona == 0:
-			self.defend()
-		elif x >= -180 and obrona == 1:
-			self.stop_defend()
-
-		return True
-
-
-	def game(self,lol,lol2):
+	def game(self):
 		global ingame, hp, enemyhp
 		hp = 100
 		enemyhp = 100
@@ -301,7 +351,7 @@ class MokoFight:
 		self.separator.set_sensitive(1)
 		while ingame:
 			self.accelread()
-			self.proceed()
+
 		self.startbutton.set_sensitive(1)
 		self.separator.set_sensitive(0)
 		self.vboxstatus.hide()
@@ -310,7 +360,7 @@ class MokoFight:
 		global ingame
 		self.playaudio("start.wav",0)
 		ingame=1
-		thread.start_new_thread(self.game, (0,0))
+		thread.start_new_thread(self.game, ())
 
 	def delete_event(self, widget, event, data=None):
 		print "shutting down!"
@@ -328,7 +378,7 @@ class MokoFight:
 		self.window.connect("destroy", self.destroy)
 		self.window.set_border_width(10)
 		self.vbox = gtk.VBox(0, 10)
-		self.label = gtk.Label("MokoFight 0.1 pre-alpha")
+		self.label = gtk.Label("MokoFight")
 		self.quitbutton = gtk.Button("Bye bye")
 		self.startbutton = gtk.Button("Start game")
 		self.startbutton.connect("clicked", self.start, None)
@@ -360,8 +410,6 @@ class MokoFight:
 		self.vboxstatus.add(self.labeldefend)
 
 		self.vboxbottom=gtk.VBox(0,10)
-		self.labelurl=gtk.Label("http://openmoko.opendevice.org/mokofight/")
-		self.vboxbottom.add(self.labelurl)
 		self.vboxbottom.add(self.quitbutton)
 		self.vbox.add(self.label)	
 		self.vbox.add(self.startbutton)
@@ -374,6 +422,9 @@ class MokoFight:
 		self.vboxstatus.hide()
 
 	def main(self):
+		client = Client()
+		thread.start_new_thread(client.recv, ())
+
 		gtk.main()
 
 if __name__ == "__main__":

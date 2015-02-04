@@ -6,7 +6,7 @@ Gra mobilna umożliwiająca walkę na telefony przy użyciu akcelerometrów, pod
 Podstawowym klientem gry jest klient dla platformy Maemo, napisany w Pythonie przy użyciu PyGTK, znajdujący się w katalogu /clients/maemo
 
 Uruchomienie (na urządzeniu z systemem Maemo takim jak Nokia N900):
-  python mokofight.py
+  python mokofight.py [adres IP serwera]
 
 ==== SERWER ====
 Serwer napisany w C znajduje się w katalogu /server

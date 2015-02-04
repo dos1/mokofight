@@ -136,7 +136,11 @@ void startGame(char* name, char* opponentName) {
   
   player->hp = 100;
   opponent->hp = 100;
-  
+	
+	broadcast("OLD", 3, -1);
+	broadcast(player->name, 5, player->id);
+	broadcast(opponent->name, 5, opponent->id);
+	
   if (write(player->id, "GAME", 4) == -1) {
     perror("startGame write player");
   }
