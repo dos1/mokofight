@@ -104,11 +104,13 @@ class MokoFight:
 	def win(self):
 		global ingame
 		#self.playaudio("death.wav",0)
+		self.statuslabel.set_label("You won last game!")
 		ingame=0
 
 	def lose(self):
 		global ingame
-		self.playaudio("death.wav",0)
+		self.playaudio("death.wav")
+		self.statuslabel.set_label("You lost last game!")
 		ingame=0
 
 	def update_hp(self, hp):
@@ -134,37 +136,57 @@ class MokoFight:
 		self.playaudio("ching%d.wav" % (randnr))	
 		return True
 
-	def game(self):
+	def game(self, name, player):
 		global ingame, hp, enemyhp
 		hp = 100
 		enemyhp = 100
 		self.vboxstatus.show()
 		self.update_hp(100)
 		self.update_enemyhp(100)
-		self.startbutton.set_sensitive(0)
-		self.separator.set_sensitive(1)
+		self.startbutton.hide()
+		self.statuslabel.set_label("Your name: " + name + "\nOpponent: " + player)
+
 		while ingame:
 			self.accelread()
 
 		self.startbutton.set_sensitive(1)
-		self.separator.set_sensitive(0)
+		self.startbutton.show()
+		self.startbutton.set_label("Start game")
 		self.vboxstatus.hide()
 
-	def start(self, widget, data=None):
+	def start(self, name, player):
 		global ingame
-		self.playaudio("start.wav",0)
+		self.playaudio("start.wav")
 		ingame=1
-		thread.start_new_thread(self.game, ())
+		thread.start_new_thread(self.game, (name, player))
 
 	def delete_event(self, widget, event, data=None):
+		if ingame:
+			self.leave()
+			return True
 		print "shutting down!"
 		return False
 
 	def destroy(self, widget, data=None):
 		ingame=0
 		print "nap time!"
-		self.playaudio("death.wav",0)
+		self.playaudio("death.wav")
 		gtk.main_quit()
+		
+	def join(self):
+		self.startbutton.set_sensitive(False)
+		self.startbutton.set_label("Waiting for opponent...")
+		self.client.setAutoJoin(True)
+		self.client.joinRandomPlayer()
+
+	def leave(self):
+		self.client.leave()
+
+	def buttonHandler(self, widget, data=None):
+		if ingame:
+			self.leave()
+		else:
+			self.join()
 
 	def __init__(self):
 		self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
@@ -173,14 +195,8 @@ class MokoFight:
 		self.window.set_border_width(10)
 		self.vbox = gtk.VBox(0, 10)
 		self.label = gtk.Label("MokoFight")
-		self.quitbutton = gtk.Button("Bye bye")
 		self.startbutton = gtk.Button("Start game")
-		self.startbutton.connect("clicked", self.start, None)
-		self.quitbutton.connect_object("clicked", gtk.Widget.destroy, self.window)
-#	self.separator = gtk.HSeparator()
-		self.separator = gtk.Button("Harakiri")
-		self.separator.connect("clicked", self.enemy_attack_button, None)	
-		self.separator.set_sensitive(0)
+		self.startbutton.connect("clicked", self.buttonHandler, None)
 
 		self.hbox=gtk.HBox(0,10)
 		self.vboxhp=gtk.VBox(0,10)
@@ -199,17 +215,12 @@ class MokoFight:
 		self.hbox.add(self.vboxehp)
 
 		self.vboxstatus=gtk.VBox(0,10)
-		self.labeldefend=gtk.Label("")
-		self.vboxstatus.add(self.hbox)
-		self.vboxstatus.add(self.labeldefend)
-
-		self.vboxbottom=gtk.VBox(0,10)
-		self.vboxbottom.add(self.quitbutton)
-		self.vbox.add(self.label)	
+		self.statuslabel = gtk.Label("")
+		self.vbox.add(self.label)
 		self.vbox.add(self.startbutton)
 		self.vbox.add(self.vboxstatus)
-		self.vbox.add(self.separator)
-		self.vbox.add(self.vboxbottom)
+		self.vboxstatus.add(self.hbox)
+		self.vbox.add(self.statuslabel)
 		self.window.add(self.vbox)
 		self.window.set_title("MokoFight")
 		self.window.show_all()
@@ -217,7 +228,8 @@ class MokoFight:
 
 	def eventHandler(self, eventType, args = None):
 		if eventType == "start":
-			self.start(None)
+			self.client.setAutoJoin(False)
+			self.start(args[0], args[1])
 		elif eventType == "attack":
 			(hit, me, hp) = args
 			if me:
@@ -238,14 +250,21 @@ class MokoFight:
 				self.win()
 			else:
 				self.lose()
+			#self.client.disconnect()
+		elif eventType == "id":
+			self.statuslabel.set_label("My name: " + args[0])
 				
 		print eventType, args
 
 	def main(self):
-		self.client = client.Client(sys.argv[1], PORT)
-		thread.start_new_thread(self.client.recv, ())
 		
+		self.client = client.Client(sys.argv[1], PORT)		
 		self.client.setEventHandler(self.eventHandler)
+		
+		self.client.setAutoJoin(False)
+		
+		self.client.connect()
+		thread.start_new_thread(self.client.recv, ())
 
 		gtk.main()
 

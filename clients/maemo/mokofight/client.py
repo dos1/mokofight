@@ -1,4 +1,4 @@
-import socket
+import socket, random
 
 class Client:
   
@@ -9,9 +9,16 @@ class Client:
 	actionsRemote = []
 	connected = False
 	handler = None
+	autojoin = False
+
+	pair = None
+	
+	host = None
+	port = None
 
 	def get(self, n):
-		# TODO: timeout
+		if not self.connected:
+			return ""
 		res = ""
 		while len(res) < n:
 			newres = self.s.recv(1)
@@ -24,8 +31,13 @@ class Client:
 		return res
 
 	def __init__(self, host, port):
+		self.host = host
+		self.port = port
+		
+	def connect(self):
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		self.s.connect((host, port))
+		self.s.connect((self.host, self.port))
+		self.connected = True
 		self.s.sendall("MOKO")
 		data = self.get(5)
 		print data
@@ -33,21 +45,26 @@ class Client:
 		if data == "FIGHT":
 			self.s.sendall("H")
 			self.myID = self.get(5)
+			self.handler("id", (self.myID,))
 			while True:
 				player = self.get(5)
 				if player == "NOMOR":
 					break
 				self.players.append(player)
-			self.connected = True
 
-			if len(self.players) > 0:
-				self.s.sendall("J" + self.players[-1])
+			if len(self.players) > 0 and self.autojoin:
+				self.join(self.players[-1])
 				ok = self.get(4)
 
 			print self.myID, self.players
 		else:
 			print "Couldn't connect"
+			self.connected = False
 			self.s.close()
+			
+	def disconnect(self):
+		self.connected = False
+		self.s.close()
 			
 	def _addPlayer(self):
 		command = self.get(2)
@@ -56,11 +73,30 @@ class Client:
 			return
 		player = self.get(5)
 		self.players.append(player)
-		self.s.sendall("J" + player)
+		if self.autojoin:
+			self.join(player)
 		#ok = self.get(4)
 		#print "join reply", ok
 		self.handler("players", (self.players))
 		print self.players
+		
+	def join(self, player):
+		self.s.sendall("J" + player)
+		#ok = self.get(4)
+		#if ok == "OKAY":
+		self.pair = player
+		#else:
+		#	print "join failed", ok
+		
+	def joinRandomPlayer(self):
+		if len(self.players):
+			self.join(random.choice(self.players))
+	
+	def setAutoJoin(self, autojoin):
+		self.autojoin = autojoin
+	
+	def leave(self):
+		self.s.sendall("L")
 		
 	def _delPlayer(self):
 		command = self.get(2)
@@ -87,10 +123,11 @@ class Client:
 			print "attack", hitmiss, target, hp
 		if subcmd == "E":
 			winner = self.get(5)
-			self.handler("end", [winner == self.myID])
+			self.handler("end", (winner == self.myID,))
 			print "end of game, winner", winner
 		if subcmd == "S":
 			print "game started!"
+			self.handler("start", (self.myID, self.pair))
 		
 		nomor = self.get(5)
 		if nomor != "NOMOR":
@@ -101,7 +138,6 @@ class Client:
 		if command != "AME":
 			print "game command mismatch!"
 			return
-		self.handler("start")
 		print "it's a match!"
 	
 	def _quit(self):
