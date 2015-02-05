@@ -20,7 +20,6 @@ from mokofight.throttle import throttle
 gtk.gdk.threads_init()
 
 PORT = 5104
-BUFFER_SIZE = 64
 
 x = y = z = 0
 ingame	  = 0
@@ -231,7 +230,7 @@ class MokoFight:
 			self.client.setAutoJoin(False)
 			self.start(args[0], args[1])
 		elif eventType == "attack":
-			(hit, me, hp) = args
+			(hit, me, hp, game, target) = args
 			if me:
 				self.update_hp(hp)
 			else:

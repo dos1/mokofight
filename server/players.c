@@ -33,6 +33,7 @@ PlayerList* addPlayer(PlayerList *list, int id) {
   player->spectator = false;
   player->position = 0;
   player->hp = 0;
+  player->inGame = false;
   
   player->_state.join = 0;
   player->_state.position = 0;

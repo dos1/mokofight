@@ -14,6 +14,7 @@ typedef struct Player {
     int position;
     int attack;
     int moko;
+    int ignore;
     char buf[5];
   } _state;
 } Player;

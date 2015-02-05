@@ -137,8 +137,9 @@ void startGame(char* name, char* opponentName) {
   player->hp = 100;
   opponent->hp = 100;
 	
-	broadcast("DEL", 3, -1);
+	broadcast("DEL", 3, player->id);
 	broadcast(player->name, 5, player->id);
+	broadcast("DEL", 3, opponent->id);
 	broadcast(opponent->name, 5, opponent->id);
 	
   if (write(player->id, "GAME", 4) == -1) {
@@ -169,8 +170,9 @@ bool endGame(Player *winner) {
   free(opponent->opponent);
   opponent->opponent = NULL;
   
-  broadcast("ADD", 3, -1);
+  broadcast("ADD", 3, winner->id);
   broadcast(winner->name, 5, winner->id);
+  broadcast("ADD", 3, opponent->id);
   broadcast(opponent->name, 5, opponent->id);
   
   return true;
@@ -451,7 +453,12 @@ int main() {
 
               updatePosition(player, buf[0]);
               player->_state.position = 0;
-              
+            
+            } else if (player->_state.ignore) {
+              // there was some error and we want to eat some characters to recover from it
+
+              player->_state.ignore--;
+
             } else {
               
               // no special state, so it's a new command!
@@ -492,6 +499,7 @@ int main() {
                     if (write(i, "NOOK", 4) == -1) {
                       perror("write");
                     }
+                    player->_state.ignore = 5;
                     break;
                   }
                   
@@ -500,6 +508,7 @@ int main() {
                     if (write(i, "NOOK", 4) == -1) {
                       perror("write");
                     }
+                    player->_state.ignore = 5;
                     break;
                   }
                   printf("player %d wants to join the game. listening for opponent...\n", i);

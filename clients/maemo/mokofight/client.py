@@ -22,6 +22,7 @@ class Client:
 		res = ""
 		while len(res) < n:
 			newres = self.s.recv(1)
+			#print newres,
 			if newres == "":
 				self.connected = False
 				print "connection dropped!"
@@ -34,29 +35,38 @@ class Client:
 		self.host = host
 		self.port = port
 		
-	def connect(self):
+	def connect(self, player = True, spectator = False):
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.s.connect((self.host, self.port))
 		self.connected = True
 		self.s.sendall("MOKO")
 		data = self.get(5)
-		print data
+		#print data
 		
 		if data == "FIGHT":
-			self.s.sendall("H")
-			self.myID = self.get(5)
-			self.handler("id", (self.myID,))
+			if player:
+				self.s.sendall("H")
+				self.myID = self.get(5)
+				self.handler("id", (self.myID,))
+				
+			if spectator:
+				self.s.sendall("S")
+				spok = self.get(4)
+
 			while True:
 				player = self.get(5)
 				if player == "NOMOR":
 					break
 				self.players.append(player)
+				
+			self.handler("players", (self.players))
 
-			if len(self.players) > 0 and self.autojoin:
+			if player and len(self.players) > 0 and self.autojoin:
 				self.join(self.players[-1])
 				ok = self.get(4)
 
-			print self.myID, self.players
+			#print self.myID, self.players
+
 		else:
 			print "Couldn't connect"
 			self.connected = False
@@ -78,7 +88,7 @@ class Client:
 		#ok = self.get(4)
 		#print "join reply", ok
 		self.handler("players", (self.players))
-		print self.players
+		#print self.players
 		
 	def join(self, player):
 		self.s.sendall("J" + player)
@@ -104,7 +114,8 @@ class Client:
 			print "del command mismatch!"
 			return
 		player = self.get(5)
-		self.players.remove(player)
+		if player in self.players:
+			self.players.remove(player)
 		self.handler("players", (self.players))
 		print self.players
 	
@@ -119,15 +130,15 @@ class Client:
 			hitmiss = self.get(1)
 			target = self.get(5)
 			hp = int(self.get(3))
-			self.handler("attack", (hitmiss == "H", target == self.myID, hp))
-			print "attack", hitmiss, target, hp
+			self.handler("attack", (hitmiss == "H", target == self.myID, hp, gameID, target))
+			#print "attack", hitmiss, target, hp
 		if subcmd == "E":
 			winner = self.get(5)
-			self.handler("end", (winner == self.myID,))
-			print "end of game, winner", winner
+			self.handler("end", (winner == self.myID, gameID, winner))
+			#print "end of game, winner", winner
 		if subcmd == "S":
-			print "game started!"
-			self.handler("start", (self.myID, self.pair))
+			#print "game started!"
+			self.handler("start", (self.myID, self.pair, gameID))
 		
 		nomor = self.get(5)
 		if nomor != "NOMOR":
@@ -138,7 +149,7 @@ class Client:
 		if command != "AME":
 			print "game command mismatch!"
 			return
-		print "it's a match!"
+		#print "it's a match!"
 	
 	def _quit(self):
 		self.connected = False
@@ -146,10 +157,11 @@ class Client:
 	def _ok(self):
 		command = self.get(3)
 		if command == "KAY":
-			print "ok"
+			#print "ok"
+			pass
 		else:
 			print "ERROR okay mismatch"
-			
+						
 	def _nook(self):
 		command = self.get(3)
 		if command == "OOK":
@@ -187,7 +199,7 @@ class Client:
 		self.s.sendall(msg)
 	
 	def recv(self):
-		print "recv start"
+		#print "recv start"
 		while self.connected == True:
 			command = self.get(1)
 			#print command
